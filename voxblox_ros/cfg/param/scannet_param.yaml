@@ -45,7 +45,7 @@ reliable_normal_ratio_thre: 0.05 # Inner product threshold for ruling out large 
 local_range_offset_x: 20 # Number of voxels to append in x when expanding the current range
 local_range_offset_y: 20 # Number of voxels to append in y when expanding the current range
 local_range_offset_z: 10 # Number of voxels to append in z when expanding the current range
-esdf_default_distance_m: 2.0 # Maximum distance to calculate the actual distance to (Any values above this will be set to default_distance_m)
+esdf_default_distance_m: 5.0 # Maximum distance to calculate the actual distance to (Any values above this will be set to default_distance_m)
 max_behind_surface_m: 0.2 # Trunction distance behind surface (should be larger than truncation_distance)
 num_buckets: 50 # Number of buckets for the bucketed priority queue.
 # About the patch_on and early_break settings:
@@ -73,8 +73,9 @@ threshold_occupancy: 0.7 # NOT USED
 enable_icp: false
 icp_iterations: 10
 use_tf_transforms: true
+#world_frame: world
 world_frame: map
-sensor_frame: camera
+sensor_frame: velodyne_base_link
 
 # Timer
 # if set as a negative value, it means the frame interval for the processing

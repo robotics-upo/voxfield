@@ -66,6 +66,8 @@ void VoxfieldServer::setupRos() {
           "esdf_error_slice", 1, true);
   esdf_map_pub_ =
       nh_private_.advertise<voxblox_msgs::DiscreteSDF>("esdf_map_out", 1, false);
+  esdf_map_local_pub_ =
+      nh_private_.advertise<voxblox_msgs::DiscreteSDF>("esdf_map_local_out", 1, false);
   // Set up subscriber.
   esdf_map_sub_ = nh_private_.subscribe(
       "esdf_map_in", 1, &VoxfieldServer::esdfMapCallback, this);
@@ -207,8 +209,7 @@ void VoxfieldServer::publishMap(bool reset_remote_map) {
     timing::Timer publish_map_timer("map/publish_esdf");
     //voxblox_msgs::Layer layer_msg;
     voxblox_msgs::DiscreteSDF sdf_msg;
-    serializeLayerAsDiscreteSDFMsg<EsdfVoxel>(
-        this->esdf_map_->getEsdfLayer(), only_updated, &sdf_msg);
+    serializeLayerAsDiscreteSDFMsg<EsdfVoxel>(this->esdf_map_->getEsdfLayer(), only_updated, &sdf_msg);
     if (reset_remote_map) {
       sdf_msg.action = static_cast<uint8_t>(MapDerializationAction::kReset);
     }
@@ -217,6 +218,53 @@ void VoxfieldServer::publishMap(bool reset_remote_map) {
   }
   num_subscribers_esdf_map_ = subscribers;
   NpTsdfServer::publishMap();
+
+    // ----------------Local map--------------------------
+    Eigen::Vector3d drone_position;
+    Eigen::Vector3f drone_pos_f;
+    std::string sensor_frame = "base_link";
+    nh_private_.param("sensor_frame", sensor_frame, sensor_frame);
+    
+    try {
+      geometry_msgs::TransformStamped transform =
+          tf_buffer_.lookupTransform(world_frame_, sensor_frame, ros::Time(0));
+      drone_position = Eigen::Vector3d(
+          transform.transform.translation.x,
+          transform.transform.translation.y,
+          transform.transform.translation.z
+      );
+      drone_pos_f = drone_position.cast<float>();
+    } catch (tf2::TransformException &ex) {
+      ROS_WARN("No se pudo obtener la posicion del dron para mapa local: %s", ex.what());
+      return;
+    }
+
+    // 2b. Crear un layer temporal para el submapa
+    Layer<EsdfVoxel>& global_layer = *this->esdf_map_->getEsdfLayerPtr();
+    Layer<EsdfVoxel>::Ptr local_layer(
+        new Layer<EsdfVoxel>(global_layer.voxel_size(), global_layer.voxels_per_side()));
+
+    // 2c. Obtener todos los bloques y filtrar por distancia
+    BlockIndexList all_blocks;
+    global_layer.getAllAllocatedBlocks(&all_blocks);
+
+    for (const BlockIndex& block_idx : all_blocks) {
+      auto block_ptr = global_layer.getBlockPtrByIndex(block_idx);
+      if (!block_ptr) continue;
+
+      if ((block_ptr->origin() - drone_pos_f).norm() <= local_map_radius_) {
+        // Insertar el bloque en el layer local
+        local_layer->insertBlock(std::make_pair(block_idx, block_ptr));
+      }
+    }
+
+    // 2d. Serializar y publicar el mapa local
+    voxblox_msgs::DiscreteSDF local_sdf_msg;
+    serializeLayerAsDiscreteSDFMsg<EsdfVoxel>(
+        *local_layer, false /* publicar todos los bloques del radio local */, &local_sdf_msg);
+    local_sdf_msg.action = static_cast<uint8_t>(MapDerializationAction::kReset);
+
+    this->esdf_map_local_pub_.publish(local_sdf_msg);  // Topic nuevo
 }
 
 bool VoxfieldServer::saveMap(const std::string& file_path) {

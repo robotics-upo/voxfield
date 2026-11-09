@@ -10,5 +10,6 @@
     <rosparam file="$(find voxblox_ros)/cfg/param/scannet_param.yaml"/>  <!-- Parameters -->
     <param name="robot_model_file" value="$(arg robot_model_file)"/>
   </node>
+  
 
 </launch>

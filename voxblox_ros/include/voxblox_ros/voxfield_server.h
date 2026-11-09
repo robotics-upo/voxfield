@@ -13,6 +13,11 @@
 
 #include "voxblox_ros/np_tsdf_server.h"
 
+#include <tf2_ros/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+
 namespace voxblox {
 
 class VoxfieldServer : public NpTsdfServer {
@@ -141,6 +146,12 @@ class VoxfieldServer : public NpTsdfServer {
   // Occupancy maps.
   std::shared_ptr<OccupancyMap> occupancy_map_;
   std::unique_ptr<OccTsdfIntegrator> occupancy_integrator_;
+
+  // TF and local map
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_{tf_buffer_};
+  float local_map_radius_ = 10.0;  // r_train(5.0) + esdf_max(5.0): garantiza ESDF preciso en los 5m de entrenamiento
+  ros::Publisher esdf_map_local_pub_;
 };
 
 }  // namespace voxblox
